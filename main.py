@@ -1,8 +1,8 @@
 from requests import get
 from typing import Optional
 
-BASE_QUERY = 'c<=g t=creature usd<1'
-NUM_CREATURES = 40
+BASE_QUERY = 'c<=g t=creature game=paper'
+NUM_CREATURES = 40  # num creatures not including commander to be in deck
 SCRYFALL_URL = "https://api.scryfall.com/cards/search"
 
 
@@ -34,24 +34,31 @@ class Deck:
                 return False
         return True
 
+    # adds valid card with highest EDHREC rank to Deck
     def add_next_valid(self) -> None:
+        # removes every type in self.types from query
         query = f"{BASE_QUERY} {' '.join([f'-t={t}' for t in self.types])}"
         params = {'q': query, 'order': 'edhrec'}
         r = get(SCRYFALL_URL, params=params)
         if r.status_code != 200:
             print(f"Received unexpected status code {r.status_code}")
-        data = r.json()
-        if 'data' in data and len(data['data']) > 0:
-            name = data['data'][0]['name']
-            type_line = data['data'][0]['type_line']
+        request = r.json()
+        # TODO add error handling
+        if 'data' in request and len(request['data']) > 0:
+            name = request['data'][0]['name']
+            type_line = request['data'][0]['type_line']
             types = get_subtypes(type_line)
+            # TODO use logging instead?
             print(types)
             print(type_line)
+            # TODO add error handling if types is None
             card = Card(name=name, types=types)
+            # if query param is created corrected, this is unnecessary, as it would
+            # never return an invalid card
             if self.is_valid_card(card):
                 self.add(card)
             else:
-                print('eyo that card wasn\'t valid')
+                print(f'eyo {card.name} wasn\'t valid')
 
 
 def get_subtypes(type_line: str) -> Optional[list[str]]:
@@ -64,18 +71,15 @@ def get_subtypes(type_line: str) -> Optional[list[str]]:
         return None
 
 
-def test_rest_api() -> None:
-    query = BASE_QUERY
-    params = {'q': query, 'order': 'edhrec'}
-    r = get(SCRYFALL_URL, params=params)
-    print(r.url)
-    print(r.json())
-
-
-if __name__ == '__main__':
+# adds the next NUM_CREATURE cards using greedy algorithm
+def main() -> None:
     commander = Card(name='Radagast, the Brown', types=['Wizard', 'Avatar'])
     deck = Deck(cards=[commander])
     for _ in range(NUM_CREATURES):
         deck.add_next_valid()
     for card in deck.cards:
         print(card.name)
+
+
+if __name__ == '__main__':
+    main()
